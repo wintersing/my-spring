@@ -4,6 +4,9 @@ import java.lang.annotation.*;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-@Target({ElementType.METHOD})
-public @interface Bean {
+@Target({ElementType.TYPE})
+public @interface Import {
+
+    Class<?>[] value();
+
 }

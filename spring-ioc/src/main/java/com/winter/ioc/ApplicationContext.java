@@ -1,7 +1,9 @@
 package com.winter.ioc;
 
 import com.winter.ioc.annotation.Autowired;
+import com.winter.ioc.annotation.Bean;
 import com.winter.ioc.annotation.Component;
+import com.winter.ioc.annotation.Configuration;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -9,13 +11,14 @@ import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class ApplicationContext {
 
-    private Map<String, Object> beanMap = new ConcurrentHashMap<>(64);
+    private final Map<String, Object> beanMap = new ConcurrentHashMap<>(64);
 
     private ApplicationContext() {
     }
@@ -45,7 +48,7 @@ public class ApplicationContext {
      * @param classList
      */
     private void initBean(List<Class<?>> classList) {
-        classList.stream().filter(this::existComponent)
+        classList.stream().filter(aClass -> existAnnotation(aClass, Component.class))
                 .forEach(aClass -> {
                     Class<?>[] interfaces = aClass.getInterfaces();
                     String beanName = interfaces.length == 0 ? toLowerCaseFirstWord(aClass.getSimpleName()) : toLowerCaseFirstWord(interfaces[0].getSimpleName());
@@ -53,9 +56,20 @@ public class ApplicationContext {
                         throw new RuntimeException("bean already existed");
                     }
                     try {
-                        beanMap.put(beanName, aClass.newInstance());
-                    } catch (InstantiationException e) {
-                        e.printStackTrace();
+                        Object instance = aClass.newInstance();
+                        if (existAnnotation(aClass, Configuration.class)) {
+
+                            Method[] declaredMethods = aClass.getDeclaredMethods();
+                            for (Method declaredMethod : declaredMethods) {
+                                Bean annotation = declaredMethod.getAnnotation(Bean.class);
+                                if (Objects.nonNull(annotation)) {
+                                    String name = declaredMethod.getName();
+                                    Object invoke = declaredMethod.invoke(instance);
+                                    beanMap.put(name, invoke);
+                                }
+                            }
+                        }
+                        beanMap.put(beanName, instance);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -89,29 +103,29 @@ public class ApplicationContext {
     /**
      * 是否存在Component 注解
      *
-     * @param aclass
+     * @param aClass
      * @return
      */
-    private boolean existComponent(Class<?> aclass) {
-        if (aclass.isAnnotation() || aclass.getAnnotations().length == 0) {
+    private boolean existAnnotation(Class<?> aClass, Class<? extends Annotation> targetAnnotation) {
+        if (aClass.isAnnotation() || aClass.getAnnotations().length == 0) {
             return false;
         }
 
-        Component declaredAnnotation = aclass.getDeclaredAnnotation(Component.class);
+        Annotation declaredAnnotation = aClass.getDeclaredAnnotation(targetAnnotation);
         if (Objects.nonNull(declaredAnnotation)) {
             return true;
         }
 
-        Annotation[] annotations = aclass.getAnnotations();
+        Annotation[] annotations = aClass.getAnnotations();
 
         for (Annotation annotation : annotations) {
-            return existComponent(annotation);
+            return existAnnotation(annotation, targetAnnotation);
         }
         return false;
     }
 
 
-    private boolean existComponent(Annotation annotation) {
+    private boolean existAnnotation(Annotation annotation, Class<? extends Annotation> targetAnnotation) {
         Annotation[] annotations = annotation.annotationType().getAnnotations();
 
         for (Annotation childAnnotation : annotations) {
@@ -122,10 +136,10 @@ public class ApplicationContext {
                     || interfaces[0].getName().equals(Target.class.getName())) {
                 continue;
             }
-            if (interfaces[0].getName().equals(Component.class.getName())) {
+            if (interfaces[0].getName().equals(targetAnnotation.getName())) {
                 return true;
             } else {
-                return existComponent(childAnnotation);
+                return existAnnotation(childAnnotation, targetAnnotation);
             }
         }
         return false;

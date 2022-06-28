@@ -1,15 +1,13 @@
 package com.winter.ioc;
 
+import com.winter.ioc.annotation.Import;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 
 public class ClassUtils {
 
@@ -60,7 +58,14 @@ public class ClassUtils {
                         .forEach(file -> findAllClassByPath(packageName + "." + file.getName(), file.getAbsolutePath(), classList));
             } else{
                 String className = StringUtils.substringBeforeLast(packageName, ".");
-                classList.add(Class.forName(className));
+                Class<?> aClass = Class.forName(className);
+
+                Import annotation = aClass.getAnnotation(Import.class);
+                if (Objects.nonNull(annotation)) {
+                    Class<?>[] value = annotation.value();
+                    classList.addAll(Arrays.asList(value));
+                }
+                classList.add(aClass);
             }
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
