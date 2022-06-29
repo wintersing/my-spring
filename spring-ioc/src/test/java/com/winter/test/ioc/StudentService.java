@@ -1,9 +1,9 @@
 package com.winter.test.ioc;
 
 import com.winter.ioc.annotation.Autowired;
-import com.winter.ioc.annotation.Component;
+import com.winter.ioc.annotation.Service;
 
-@Component
+@Service
 public class StudentService {
 
     @Autowired

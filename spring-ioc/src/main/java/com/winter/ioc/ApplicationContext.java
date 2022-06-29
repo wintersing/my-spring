@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("unchecked")
 public class ApplicationContext {
 
     private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(64);
@@ -34,10 +35,10 @@ public class ApplicationContext {
                 }
         ).collect(Collectors.toList());
 
-        allClass.forEach(this::getBean);
+        allClass.forEach(this::doGetBean);
     }
 
-    private void createBean(Class<?> aClass) {
+    private void doCreateBean(Class<?> aClass) {
         Class<?>[] interfaces = aClass.getInterfaces();
         String beanName = interfaces.length == 0 ? toLowerCaseFirstWord(aClass.getSimpleName()) : toLowerCaseFirstWord(interfaces[0].getSimpleName());
         if (!singletonObjects.containsKey(beanName) && !earlySingletonObjects.containsKey(beanName)) {
@@ -72,10 +73,10 @@ public class ApplicationContext {
         Field[] declaredFields = bean.getClass().getDeclaredFields();
         for (Field field : declaredFields) {
             if (ClassUtils.existAnnotation(field, Autowired.class)) {
-                Object beanObject = getBean(field.getType());
+                Object beanObject = doGetBean(field.getType());
                 if (Objects.isNull(beanObject)) {
-                    createBean(field.getType());
-                    beanObject = getBean(field.getClass());
+                    doCreateBean(field.getType());
+                    beanObject = doGetBean(field.getClass());
                 }
                 // 允许访问私有属性
                 field.setAccessible(true);
@@ -83,10 +84,18 @@ public class ApplicationContext {
                 field.set(bean, beanObject);
             }
         }
-
     }
 
-    @SuppressWarnings("unchecked")
+
+    private <T> T doGetBean(Class<T> tClass) {
+        String beanName = toLowerCaseFirstWord(tClass.getSimpleName());
+        Object bean = getBean(beanName);
+        if (Objects.isNull(bean)) {
+            doCreateBean(tClass);
+        }
+        return getBean(beanName);
+    }
+
     public <T> T getBean(String beanName) {
         Object obj = earlySingletonObjects.get(beanName);
         if (Objects.isNull(obj)) {
@@ -96,15 +105,12 @@ public class ApplicationContext {
     }
 
 
-    @SuppressWarnings("unchecked")
-    private <T> T getBean(Class<T> tClass) {
-        String beanName = toLowerCaseFirstWord(tClass.getSimpleName());
-        Object bean = getBean(beanName);
-        if (Objects.isNull(bean)) {
-            createBean(tClass);
+    public <T> T getBean(Class<T> tClass) {
+        String[] beanName = singletonBeanNamesByType.get(tClass);
+        if (Objects.nonNull(beanName) && beanName.length > 0) {
+            return getBean(beanName[0]);
         }
-        return getBean(beanName);
-
+        return null;
     }
 
     /**
