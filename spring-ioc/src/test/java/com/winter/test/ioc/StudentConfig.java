@@ -5,12 +5,12 @@ import com.winter.ioc.annotation.Configuration;
 import com.winter.ioc.annotation.Import;
 
 @Configuration
-@Import(Student.class)
+//@Import(Student.class)
 public class StudentConfig {
 
-    /*@Bean
+    @Bean
     public Student student() {
         return new Student();
-    }*/
+    }
 
 }

@@ -2,6 +2,7 @@ package com.winter.ioc;
 
 import com.winter.ioc.annotation.Component;
 import com.winter.ioc.annotation.Import;
+import com.winter.ioc.bean.BeanDefinition;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
@@ -14,6 +15,7 @@ import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ClassUtils {
 
@@ -23,8 +25,8 @@ public class ClassUtils {
      * @param packageName
      * @return
      */
-    public static List<Class<?>> getAllClassByPakcage(String packageName) throws IOException {
-        List<Class<?>> classList = new ArrayList<>();
+    public static List<BeanDefinition> getAllClassByPakcage(String packageName) throws IOException {
+        List<BeanDefinition> classList = new ArrayList<>();
         String packagePath = packageName.replace(".", "/");
 
         Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(packagePath);
@@ -51,7 +53,7 @@ public class ClassUtils {
      * @param filePath    路径
      * @param classList   返回列表
      */
-    public static void findAllClassByPath(String packageName, String filePath, List<Class<?>> classList) {
+    public static void findAllClassByPath(String packageName, String filePath, List<BeanDefinition> classList) {
         try {
             File rootFile = new File(filePath);
             if (!rootFile.exists()) {
@@ -69,10 +71,10 @@ public class ClassUtils {
                 Import annotation = aClass.getAnnotation(Import.class);
                 if (Objects.nonNull(annotation)) {
                     Class<?>[] value = annotation.value();
-                    classList.addAll(Arrays.asList(value));
+                    classList.addAll(Arrays.stream(value).map(BeanDefinition::new).collect(Collectors.toList()));
                 }
                 if (existAnnotation(aClass, Component.class)) {
-                    classList.add(aClass);
+                    classList.add(new BeanDefinition(aClass));
                 }
             }
         } catch (ClassNotFoundException e) {

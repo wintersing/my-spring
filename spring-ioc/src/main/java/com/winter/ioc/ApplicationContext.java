@@ -3,6 +3,9 @@ package com.winter.ioc;
 import com.winter.ioc.annotation.Autowired;
 import com.winter.ioc.annotation.Bean;
 import com.winter.ioc.annotation.Configuration;
+import com.winter.ioc.bean.BeanDefinition;
+import com.winter.ioc.bean.BeanNameGenerator;
+import org.apache.commons.collections.CollectionUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -14,6 +17,8 @@ import java.util.stream.Collectors;
 @SuppressWarnings("unchecked")
 public class ApplicationContext {
 
+    private final List<BeanDefinition> beanDefinitions = new ArrayList<>(64);
+
     private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(64);
 
     private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
@@ -24,24 +29,39 @@ public class ApplicationContext {
     }
 
     public ApplicationContext(String... basePackages) {
-        List<Class<?>> allClass = Arrays.stream(basePackages).flatMap(packageName ->
-                {
-                    try {
-                        return ClassUtils.getAllClassByPakcage(packageName).stream();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    return null;
-                }
-        ).collect(Collectors.toList());
-
-        allClass.forEach(this::doGetBean);
+        doScan(basePackages);
+        refresh();
     }
 
-    private void doCreateBean(Class<?> aClass) {
-        Class<?>[] interfaces = aClass.getInterfaces();
-        String beanName = interfaces.length == 0 ? toLowerCaseFirstWord(aClass.getSimpleName()) : toLowerCaseFirstWord(interfaces[0].getSimpleName());
+    private void doScan(String... basePackages) {
+        for (String basePackage : basePackages) {
+            List<BeanDefinition> list = null;
+            try {
+                list = ClassUtils.getAllClassByPakcage(basePackage);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            if (CollectionUtils.isNotEmpty(list)) {
+                beanDefinitions.addAll(list);
+            }
+        }
+    }
+
+    private void refresh() {
+        for (BeanDefinition beanDefinition : beanDefinitions) {
+            doCreateBean(beanDefinition);
+        }
+    }
+
+
+    private void doCreateBean(BeanDefinition beanDefinition) {
+        doCreateBean(beanDefinition.getBeanName(), beanDefinition.getaClass());
+    }
+
+    private void doCreateBean(String beanName, Class<?> aClass) {
+
         if (!singletonObjects.containsKey(beanName) && !earlySingletonObjects.containsKey(beanName)) {
+            System.out.println(beanName+" creating...");
             try {
                 Object instance = aClass.newInstance();
                 earlySingletonObjects.put(beanName, instance);
@@ -75,7 +95,8 @@ public class ApplicationContext {
             if (ClassUtils.existAnnotation(field, Autowired.class)) {
                 Object beanObject = doGetBean(field.getType());
                 if (Objects.isNull(beanObject)) {
-                    doCreateBean(field.getType());
+                    String beanName = BeanNameGenerator.generateBeanName(field.getType());
+                    doCreateBean(beanName, field.getType());
                     beanObject = doGetBean(field.getClass());
                 }
                 // 允许访问私有属性
@@ -88,10 +109,10 @@ public class ApplicationContext {
 
 
     private <T> T doGetBean(Class<T> tClass) {
-        String beanName = toLowerCaseFirstWord(tClass.getSimpleName());
+        String beanName = BeanNameGenerator.generateBeanName(tClass);
         Object bean = getBean(beanName);
         if (Objects.isNull(bean)) {
-            doCreateBean(tClass);
+            doCreateBean(beanName, tClass);
         }
         return getBean(beanName);
     }
@@ -113,14 +134,4 @@ public class ApplicationContext {
         return null;
     }
 
-    /**
-     * 首字母转小写
-     *
-     * @param s
-     * @return
-     */
-    private String toLowerCaseFirstWord(String s) {
-        return Character.isLowerCase(s.charAt(0)) ? s
-                : (new StringBuilder().append(Character.toLowerCase(s.charAt(0)))).append(s.substring(1)).toString();
-    }
 }

@@ -7,4 +7,5 @@ import java.lang.annotation.*;
 @Target({ElementType.TYPE})
 @Component
 public @interface Service {
+    String value() default "";
 }
