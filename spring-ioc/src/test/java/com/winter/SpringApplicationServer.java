@@ -1,10 +1,7 @@
 package com.winter;
 
-import com.winter.ioc.ApplicationContext;
-import com.winter.ioc.annotation.Component;
-import com.winter.ioc.annotation.Controller;
+import com.winter.ioc.bean.DefaultListableBeanFactory;
 import com.winter.ioc.annotation.Service;
-import com.winter.test.ioc.Student;
 import com.winter.test.ioc.StudentService;
 import com.winter.test.ioc.UserService;
 
@@ -12,7 +9,7 @@ import java.lang.annotation.Annotation;
 
 public class SpringApplicationServer {
     public static void main(String[] args) {
-        ApplicationContext springIocApplication = new ApplicationContext("com.winter.test");
+        DefaultListableBeanFactory springIocApplication = new DefaultListableBeanFactory("com.winter.test");
         StudentService student = springIocApplication.getBean("studentService");
         student.studentInfo();
 
