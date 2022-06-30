@@ -1,7 +1,6 @@
 package com.winter.ioc.bean;
 
 import com.winter.ioc.ClassUtils;
-import com.winter.ioc.annotation.Autowired;
 import com.winter.ioc.annotation.Bean;
 import com.winter.ioc.annotation.Configuration;
 import com.winter.ioc.extensions.AutowireCapableBeanFactory;
@@ -11,7 +10,6 @@ import com.winter.ioc.extensions.InstantiationAwareBeanPostProcessor;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,7 +55,7 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
         //创建bean
         for (BeanDefinition beanDefinition : beanDefinitions) {
-            doGetBean(beanDefinition.getaClass());
+            doGetBean(beanDefinition.getBeanClass());
         }
     }
 

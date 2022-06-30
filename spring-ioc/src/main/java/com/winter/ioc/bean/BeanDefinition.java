@@ -1,25 +1,15 @@
 package com.winter.ioc.bean;
 
-import com.winter.ioc.annotation.Component;
-import com.winter.ioc.annotation.Controller;
-import com.winter.ioc.annotation.Service;
-
-import java.lang.annotation.Annotation;
-import org.apache.commons.lang3.StringUtils;
-
 public class BeanDefinition {
     private String beanName;
     private String className;
-    private Class<?> aClass;
+    private Class<?> beanClass;
 
-    public BeanDefinition(Class<?> aClass) {
-        this.className = aClass.getName();
-        this.aClass = aClass;
-        this.beanName = BeanNameGenerator.generateBeanName(aClass);
+    public BeanDefinition(Class<?> beanClass) {
+        this.className = beanClass.getName();
+        this.beanClass = beanClass;
+        this.beanName = BeanNameGenerator.generateBeanName(beanClass);
     }
-
-
-
 
     public String getBeanName() {
         return beanName;
@@ -29,7 +19,7 @@ public class BeanDefinition {
         return className;
     }
 
-    public Class<?> getaClass() {
-        return aClass;
+    public Class<?> getBeanClass() {
+        return beanClass;
     }
 }

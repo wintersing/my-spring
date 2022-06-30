@@ -3,7 +3,7 @@ package com.winter.test.ioc;
 import com.winter.ioc.annotation.Autowired;
 import com.winter.ioc.annotation.Controller;
 
-@Controller
+@Controller("asd")
 public class IocController {
 
     @Autowired
