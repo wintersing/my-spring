@@ -3,23 +3,26 @@ package com.winter.ioc.bean;
 import com.winter.ioc.ClassUtils;
 import com.winter.ioc.annotation.Bean;
 import com.winter.ioc.annotation.Configuration;
-import com.winter.ioc.extensions.AutowireCapableBeanFactory;
-import com.winter.ioc.extensions.AutowiredAnnotationBeanPostProcessor;
-import com.winter.ioc.extensions.BeanPostProcessor;
-import com.winter.ioc.extensions.InstantiationAwareBeanPostProcessor;
+import com.winter.ioc.annotation.Import;
+import com.winter.ioc.extensions.*;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("unchecked")
-public class DefaultListableBeanFactory implements ApplicationContext, AutowireCapableBeanFactory {
+public class DefaultListableBeanFactory implements ApplicationContext, AutowireCapableBeanFactory, BeanDefinitionRegistry {
+
+    private final List<BeanFactoryPostProcessor> beanFactoryPostProcessors = new ArrayList<>();
+
+    private List<BeanPostProcessor> beanPostProcessors = new ArrayList<>(16);
+
 
     private final List<BeanDefinition> beanDefinitions = new ArrayList<>(64);
 
-    private List<BeanPostProcessor> beanPostProcessors = new ArrayList<>(16);
 
     private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(64);
 
@@ -44,49 +47,120 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
                 e.printStackTrace();
             }
             if (CollectionUtils.isNotEmpty(list)) {
-                beanDefinitions.addAll(list);
+                for (BeanDefinition beanDefinition : list) {
+                    registerBeanDefinition(beanDefinition);
+                }
             }
         }
     }
 
     private void refresh() {
+
+        prepareBeanFactory();
+
+        invokeBeanFactoryPostProcessors();
+
+        registerBeanPostProcessors();
+
+        finishBeanFactoryInitialization();
+
+    }
+
+    private void prepareBeanFactory() {
+        beanFactoryPostProcessors.add(new ConfigurationClassPostProcessor());
+    }
+
+    private void invokeBeanFactoryPostProcessors() {
+
+        List<BeanDefinition> beanDefinitions = getBeanDefinitions();
+        for (BeanDefinition beanDefinition : beanDefinitions) {
+            Class<?> beanClass = beanDefinition.getBeanClass();
+
+            if (ClassUtils.existAnnotation(beanClass, Configuration.class)) {
+                //配置类
+                Object instance = doGetBean(beanClass);
+                Method[] declaredMethods = beanClass.getDeclaredMethods();
+                for (Method declaredMethod : declaredMethods) {
+                    Bean annotation = declaredMethod.getAnnotation(Bean.class);
+                    if (Objects.nonNull(annotation)) {
+                        String name = declaredMethod.getName();
+                        Object invoke = null;
+                        try {
+                            invoke = declaredMethod.invoke(instance);
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            e.printStackTrace();
+                        }
+                        singletonObjects.put(name, invoke);
+                    }
+                }
+
+                Import annotation = beanClass.getAnnotation(Import.class);
+                if (Objects.nonNull(annotation)) {
+                    Class<?>[] importClassArr = annotation.value();
+                    for (Class<?> importClass : importClassArr) {
+                        Object importInstance = doGetBean(importClass);
+                        singletonObjects.put(BeanNameGenerator.generateBeanName(importClass), importInstance);
+                    }
+                }
+                if (instance instanceof BeanPostProcessor) {
+                    beanPostProcessors.add((BeanPostProcessor) instance);
+                }
+            } else if (beanClass.isAssignableFrom(ImportBeanDefinitionRegistrar.class)) {
+                Object importInstance = doGetBean(beanClass);
+                ImportBeanDefinitionRegistrar importBeanDefinitionRegistrar = (ImportBeanDefinitionRegistrar) importInstance;
+                importBeanDefinitionRegistrar.registerBeanDefinitions(this);
+            }
+
+        }
+    }
+
+    private void registerBeanPostProcessors() {
         //添加后置处理器
         beanPostProcessors.add(new AutowiredAnnotationBeanPostProcessor(this));
 
-        //创建bean
+        List<BeanDefinition> beanDefinitions = getBeanDefinitions();
         for (BeanDefinition beanDefinition : beanDefinitions) {
-            doGetBean(beanDefinition.getBeanClass());
+            Class<?> beanClass = beanDefinition.getBeanClass();
+            if (beanClass.isAssignableFrom(BeanPostProcessor.class)) {
+                BeanPostProcessor beanPostProcessor = (BeanPostProcessor) doGetBean(beanClass);
+                beanPostProcessors.add(beanPostProcessor);
+            }
+        }
+    }
+
+    private void finishBeanFactoryInitialization() {
+
+        //创建bean
+        List<BeanDefinition> beanDefinitions = getBeanDefinitions();
+        for (BeanDefinition beanDefinition : beanDefinitions) {
+            Object bean = doGetBean(beanDefinition.getBeanClass());
+            if (bean instanceof BeanPostProcessor) {
+                beanPostProcessors.add((BeanPostProcessor) bean);
+            }
+
+            if (bean instanceof ImportBeanDefinitionRegistrar) {
+                ImportBeanDefinitionRegistrar definitionRegistrar = (ImportBeanDefinitionRegistrar) bean;
+                definitionRegistrar.registerBeanDefinitions(this);
+            }
+
         }
     }
 
     @Override
     public Object doCreateBean(String beanName, Class<?> aClass) {
         System.out.println(beanName + " creating...");
-            try {
-                Object instance = postProcessBeforeInstantiation(aClass, beanName);
-                //判断不是自定义的bean则创建
-                if (Objects.isNull(instance)) {
-                    instance = aClass.newInstance();
-                    earlySingletonObjects.put(beanName, instance);
-
-                    if (ClassUtils.existAnnotation(aClass, Configuration.class)) {
-                        //配置类
-                        Method[] declaredMethods = aClass.getDeclaredMethods();
-                        for (Method declaredMethod : declaredMethods) {
-                            Bean annotation = declaredMethod.getAnnotation(Bean.class);
-                            if (Objects.nonNull(annotation)) {
-                                String name = declaredMethod.getName();
-                                Object invoke = declaredMethod.invoke(instance);
-                                singletonObjects.put(name, invoke);
-                            }
-                        }
-                    }
-                }
-                populateBean(instance, beanName);
-                return instance;
-            } catch (Exception e) {
-                throw new RuntimeException("创建bean:"+beanName+"失败", e);
+        try {
+            Object instance = postProcessBeforeInstantiation(aClass, beanName);
+            //判断不是自定义的bean则创建
+            if (Objects.isNull(instance)) {
+                instance = aClass.newInstance();
+                earlySingletonObjects.put(beanName, instance);
             }
+            populateBean(instance, beanName);
+            return instance;
+        } catch (Exception e) {
+            throw new RuntimeException("创建bean:" + beanName + "失败", e);
+        }
 
     }
 
@@ -175,6 +249,25 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
             return getBean(beanName[0]);
         }
         return null;
+    }
+
+    @Override
+    public void registerBeanDefinition(BeanDefinition beanDefinition) {
+        this.beanDefinitions.add(beanDefinition);
+    }
+
+    @Override
+    public void registerBeanDefinition(String beanFullName) {
+        try {
+            registerBeanDefinition(new BeanDefinition(Class.forName(beanFullName)));
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public List<BeanDefinition> getBeanDefinitions() {
+        return this.beanDefinitions;
     }
 
 }
