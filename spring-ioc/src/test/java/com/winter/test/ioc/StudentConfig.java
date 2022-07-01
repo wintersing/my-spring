@@ -10,6 +10,7 @@ public class StudentConfig {
 
     @Bean
     public Student student() {
+        System.out.println("student creating...");
         return new Student();
     }
 

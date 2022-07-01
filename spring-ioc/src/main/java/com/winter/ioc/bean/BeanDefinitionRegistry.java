@@ -6,7 +6,7 @@ public interface BeanDefinitionRegistry {
 
     void registerBeanDefinition(BeanDefinition beanDefinition);
 
-    void registerBeanDefinition(String beanFullName);
+    void registerBeanDefinition(Class<?> beanClass);
 
     List<BeanDefinition> getBeanDefinitions();
 

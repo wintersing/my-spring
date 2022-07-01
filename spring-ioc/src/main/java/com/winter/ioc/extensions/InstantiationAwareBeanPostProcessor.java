@@ -1,5 +1,9 @@
 package com.winter.ioc.extensions;
 
+import com.winter.ioc.bean.PropertyValue;
+
+import java.util.Collection;
+
 public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
 
     Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName);
@@ -11,7 +15,8 @@ public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
      *
      * @param bean
      * @param beanName
+     * @param propertyValues
      */
-    void postProcessPropertyValues(Object bean, String beanName);
+    void postProcessPropertyValues(Object bean, String beanName, Collection<PropertyValue> propertyValues);
 
 }

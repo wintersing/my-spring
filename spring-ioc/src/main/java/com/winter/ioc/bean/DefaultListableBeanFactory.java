@@ -72,46 +72,52 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
     private void invokeBeanFactoryPostProcessors() {
 
+        /*for (BeanFactoryPostProcessor beanFactoryPostProcessor : beanFactoryPostProcessors) {
+            beanFactoryPostProcessor.postProcessBeanFactory();
+        }*/
+
+        //todo 使用ConfigurationClassPostProcessor处理配置类
         List<BeanDefinition> beanDefinitions = getBeanDefinitions();
         for (BeanDefinition beanDefinition : beanDefinitions) {
             Class<?> beanClass = beanDefinition.getBeanClass();
-
-            if (ClassUtils.existAnnotation(beanClass, Configuration.class)) {
-                //配置类
-                Object instance = doGetBean(beanClass);
-                Method[] declaredMethods = beanClass.getDeclaredMethods();
-                for (Method declaredMethod : declaredMethods) {
-                    Bean annotation = declaredMethod.getAnnotation(Bean.class);
-                    if (Objects.nonNull(annotation)) {
-                        String name = declaredMethod.getName();
-                        Object invoke = null;
-                        try {
-                            invoke = declaredMethod.invoke(instance);
-                        } catch (IllegalAccessException | InvocationTargetException e) {
-                            e.printStackTrace();
-                        }
-                        singletonObjects.put(name, invoke);
-                    }
-                }
-
-                Import annotation = beanClass.getAnnotation(Import.class);
-                if (Objects.nonNull(annotation)) {
-                    Class<?>[] importClassArr = annotation.value();
-                    for (Class<?> importClass : importClassArr) {
-                        Object importInstance = doGetBean(importClass);
-                        singletonObjects.put(BeanNameGenerator.generateBeanName(importClass), importInstance);
-                    }
-                }
-                if (instance instanceof BeanPostProcessor) {
-                    beanPostProcessors.add((BeanPostProcessor) instance);
-                }
-            } else if (beanClass.isAssignableFrom(ImportBeanDefinitionRegistrar.class)) {
-                Object importInstance = doGetBean(beanClass);
-                ImportBeanDefinitionRegistrar importBeanDefinitionRegistrar = (ImportBeanDefinitionRegistrar) importInstance;
-                importBeanDefinitionRegistrar.registerBeanDefinitions(this);
-            }
-
+            List<PropertyValue> propertyValues = beanDefinition.getPropertyValues();
+            processImports(beanClass, beanClass, propertyValues);
         }
+    }
+
+    private void processImports(Class<?> beanClass, Class<?> targetBeanClass, List<PropertyValue> propertyValues) {
+
+        Import importAnnotation = ClassUtils.findAnnotation(beanClass, Import.class);
+        if (Objects.nonNull(importAnnotation)) {
+            doGetBean(beanClass, propertyValues);
+            Class<?>[] importClassArr = importAnnotation.value();
+            for (Class<?> importClass : importClassArr) {
+                processImports(importClass, targetBeanClass, Collections.emptyList());
+            }
+        } else if (ImportBeanDefinitionRegistrar.class.isAssignableFrom(beanClass)) {
+            Object instance = doGetBean(beanClass, propertyValues);
+
+            ImportBeanDefinitionRegistrar importBeanDefinitionRegistrar = (ImportBeanDefinitionRegistrar) instance;
+            importBeanDefinitionRegistrar.registerBeanDefinitions(targetBeanClass, this);
+        } else if (ClassUtils.existAnnotation(beanClass, Configuration.class)) {
+            Object instance = doGetBean(beanClass, propertyValues);
+
+            Method[] declaredMethods = beanClass.getDeclaredMethods();
+            for (Method declaredMethod : declaredMethods) {
+                Bean annotation = declaredMethod.getAnnotation(Bean.class);
+                if (Objects.nonNull(annotation)) {
+                    String name = declaredMethod.getName();
+                    Object invoke = null;
+                    try {
+                        invoke = declaredMethod.invoke(instance);
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        e.printStackTrace();
+                    }
+                    singletonObjects.put(name, invoke);
+                }
+            }
+        }
+
     }
 
     private void registerBeanPostProcessors() {
@@ -121,8 +127,9 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
         List<BeanDefinition> beanDefinitions = getBeanDefinitions();
         for (BeanDefinition beanDefinition : beanDefinitions) {
             Class<?> beanClass = beanDefinition.getBeanClass();
-            if (beanClass.isAssignableFrom(BeanPostProcessor.class)) {
-                BeanPostProcessor beanPostProcessor = (BeanPostProcessor) doGetBean(beanClass);
+            List<PropertyValue> propertyValues = beanDefinition.getPropertyValues();
+            if (BeanPostProcessor.class.isAssignableFrom(beanClass)) {
+                BeanPostProcessor beanPostProcessor = (BeanPostProcessor) doGetBean(beanClass, propertyValues);
                 beanPostProcessors.add(beanPostProcessor);
             }
         }
@@ -130,24 +137,16 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
     private void finishBeanFactoryInitialization() {
 
-        //创建bean
+        //创建所有bean
         List<BeanDefinition> beanDefinitions = getBeanDefinitions();
         for (BeanDefinition beanDefinition : beanDefinitions) {
-            Object bean = doGetBean(beanDefinition.getBeanClass());
-            if (bean instanceof BeanPostProcessor) {
-                beanPostProcessors.add((BeanPostProcessor) bean);
-            }
-
-            if (bean instanceof ImportBeanDefinitionRegistrar) {
-                ImportBeanDefinitionRegistrar definitionRegistrar = (ImportBeanDefinitionRegistrar) bean;
-                definitionRegistrar.registerBeanDefinitions(this);
-            }
-
+            List<PropertyValue> propertyValues = beanDefinition.getPropertyValues();
+            doGetBean(beanDefinition.getBeanClass(), propertyValues);
         }
     }
 
     @Override
-    public Object doCreateBean(String beanName, Class<?> aClass) {
+    public Object doCreateBean(String beanName, Class<?> aClass, Collection<PropertyValue> propertyValues) {
         System.out.println(beanName + " creating...");
         try {
             Object instance = postProcessBeforeInstantiation(aClass, beanName);
@@ -156,7 +155,8 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
                 instance = aClass.newInstance();
                 earlySingletonObjects.put(beanName, instance);
             }
-            populateBean(instance, beanName);
+            populateBean(instance, beanName, propertyValues);
+            initializeBean(instance, beanName);
             return instance;
         } catch (Exception e) {
             throw new RuntimeException("创建bean:" + beanName + "失败", e);
@@ -164,7 +164,29 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
     }
 
+    private void initializeBean(Object bean, String beanName) {
+        List<BeanPostProcessor> beanPostProcessor = getBeanPostProcessor();
+
+        //初始化前
+        for (BeanPostProcessor postProcessor : beanPostProcessor) {
+            postProcessor.postProcessBeforeInitialization(bean, beanName);
+        }
+
+        //调用初始化方法
+        invokeInitMethods();
+
+        //初始化后
+        for (BeanPostProcessor postProcessor : beanPostProcessor) {
+            postProcessor.postProcessAfterInitialization(bean, beanName);
+        }
+    }
+
+    private void invokeInitMethods() {
+
+    }
+
     private Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) {
+        //实例化前
         List<BeanPostProcessor> beanPostProcessor = getBeanPostProcessor();
         for (BeanPostProcessor postProcessor : beanPostProcessor) {
             if (postProcessor instanceof InstantiationAwareBeanPostProcessor) {
@@ -186,7 +208,7 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
     /**
      * 初始化容器中的bean 的属性字段
      */
-    private void populateBean(Object bean, String beanName) {
+    private void populateBean(Object bean, String beanName, Collection<PropertyValue> propertyValues) {
 
         boolean continueWithPropertyPopulation = true;
 
@@ -202,11 +224,11 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
         }
 
         if (continueWithPropertyPopulation) {
-
+            //实例化后
             for (BeanPostProcessor postProcessor : beanPostProcessor) {
                 if (postProcessor instanceof InstantiationAwareBeanPostProcessor) {
                     InstantiationAwareBeanPostProcessor instantiationAwareBeanPostProcessor = (InstantiationAwareBeanPostProcessor) postProcessor;
-                    instantiationAwareBeanPostProcessor.postProcessPropertyValues(bean, beanName);
+                    instantiationAwareBeanPostProcessor.postProcessPropertyValues(bean, beanName, propertyValues);
                 }
             }
         }
@@ -219,11 +241,31 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
     @Override
     public <T> T doGetBean(Class<T> tClass) {
+        return doGetBean(tClass, Collections.emptyList());
+    }
+
+    @Override
+    public <T> T doGetBean(Class<T> tClass, Collection<PropertyValue> propertyValues) {
+        if (tClass.isInterface()) {
+            List<BeanDefinition> subclass = new ArrayList<>(1);
+            for (BeanDefinition beanDefinition : getBeanDefinitions()) {
+                if (tClass.isAssignableFrom(beanDefinition.getBeanClass())) {
+                    subclass.add(beanDefinition);
+                }
+            }
+            if (subclass.size() == 0) {
+                return null;
+            }
+            if (subclass.size() > 1) {
+                throw new RuntimeException("找到多个Bean " + tClass.getName());
+            }
+            tClass = (Class<T>) subclass.get(0).getBeanClass();
+        }
         String beanName = BeanNameGenerator.generateBeanName(tClass);
-        Object bean = getBean(beanName);
+        Object bean = getBean(tClass);
         if (Objects.isNull(bean)) {
             if (!singletonObjects.containsKey(beanName) && !earlySingletonObjects.containsKey(beanName)) {
-                Object instance = doCreateBean(beanName, tClass);
+                Object instance = doCreateBean(beanName, tClass, propertyValues);
 
                 earlySingletonObjects.remove(beanName);
                 singletonBeanNamesByType.put(tClass, new String[]{beanName});
@@ -248,7 +290,25 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
         if (Objects.nonNull(beanName) && beanName.length > 0) {
             return getBean(beanName[0]);
         }
-        return null;
+        List<Object> objects = new ArrayList<>(1);
+        for (Object value : earlySingletonObjects.values()) {
+            if (tClass.isAssignableFrom(value.getClass())) {
+                objects.add(value);
+            }
+        }
+        for (Object value : singletonObjects.values()) {
+            if (tClass.isAssignableFrom(value.getClass())) {
+                objects.add(value);
+            }
+        }
+        if (objects.size() == 0) {
+            return null;
+        }
+        if (objects.size() > 1) {
+            throw new RuntimeException("找到多个Bean " + tClass.getName());
+        }
+
+        return (T) objects.get(0);
     }
 
     @Override
@@ -257,17 +317,14 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
     }
 
     @Override
-    public void registerBeanDefinition(String beanFullName) {
-        try {
-            registerBeanDefinition(new BeanDefinition(Class.forName(beanFullName)));
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
+    public void registerBeanDefinition(Class<?> beanClass) {
+        registerBeanDefinition(new BeanDefinition(beanClass));
     }
 
     @Override
     public List<BeanDefinition> getBeanDefinitions() {
-        return this.beanDefinitions;
+        //new一个新的List，是为保护该属性
+        return new ArrayList<>(this.beanDefinitions);
     }
 
 }

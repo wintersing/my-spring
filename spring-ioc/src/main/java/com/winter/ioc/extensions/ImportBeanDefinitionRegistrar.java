@@ -4,6 +4,6 @@ import com.winter.ioc.bean.BeanDefinitionRegistry;
 
 public interface ImportBeanDefinitionRegistrar {
 
-    void registerBeanDefinitions(BeanDefinitionRegistry registry);
+    void registerBeanDefinitions(Class<?> targetBeanClass, BeanDefinitionRegistry registry);
 
 }

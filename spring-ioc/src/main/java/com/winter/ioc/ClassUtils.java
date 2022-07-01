@@ -83,41 +83,29 @@ public class ClassUtils {
     }
 
     public static boolean existAnnotation(Class<?> aClass, Class<? extends Annotation> targetAnnotation) {
-        if (aClass.isAnnotation() || aClass.getAnnotations().length == 0) {
-            return false;
-        }
-
-        Annotation declaredAnnotation = aClass.getDeclaredAnnotation(targetAnnotation);
-        if (Objects.nonNull(declaredAnnotation)) {
-            return true;
-        }
-
-        Annotation[] annotations = aClass.getAnnotations();
-
-        for (Annotation annotation : annotations) {
-            return existAnnotation(annotation, targetAnnotation);
-        }
-        return false;
+        return findAnnotation(aClass, targetAnnotation) != null;
     }
 
-    public static boolean existAnnotation(Annotation annotation, Class<? extends Annotation> targetAnnotation) {
-        Annotation[] annotations = annotation.annotationType().getAnnotations();
-
+    public static <T extends Annotation> T findAnnotation(Class<?> aClass, Class<T> targetAnnotation) {
+        T annotation = aClass.getAnnotation(targetAnnotation);
+        if (Objects.nonNull(annotation)) {
+            return annotation;
+        }
+        Annotation[] annotations = aClass.getAnnotations();
         for (Annotation childAnnotation : annotations) {
-            Class<?>[] interfaces = childAnnotation.getClass().getInterfaces();
-            if (interfaces.length <= 0
-                    || interfaces[0].getName().equals(Retention.class.getName())
-                    || interfaces[0].getName().equals(Documented.class.getName())
-                    || interfaces[0].getName().equals(Target.class.getName())) {
+            Class<? extends Annotation> annotationType = childAnnotation.annotationType();
+            String name = annotationType.getName();
+            if (name.equals(Retention.class.getName())
+                    || name.equals(Documented.class.getName())
+                    || name.equals(Target.class.getName())) {
                 continue;
             }
-            if (interfaces[0].getName().equals(targetAnnotation.getName())) {
-                return true;
-            } else {
-                return existAnnotation(childAnnotation, targetAnnotation);
+            annotation = findAnnotation(annotationType, targetAnnotation);
+            if (Objects.nonNull(annotation)) {
+                return annotation;
             }
         }
-        return false;
+        return null;
     }
 
 
