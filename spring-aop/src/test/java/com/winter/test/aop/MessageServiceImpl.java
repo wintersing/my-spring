@@ -18,7 +18,6 @@ public class MessageServiceImpl implements IMessageService {
     }
 
     public MessageServiceImpl() {
-        System.out.println("执行构造方法");
     }
 
     @Override

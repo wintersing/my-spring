@@ -18,4 +18,10 @@ public class UserServiceImpl implements IUserService {
         return "";
     }
 
+
+    public String saveMessage() {
+        System.out.println("sendMessage");
+        return "";
+    }
+
 }

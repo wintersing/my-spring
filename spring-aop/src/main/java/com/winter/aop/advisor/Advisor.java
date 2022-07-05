@@ -1,4 +1,4 @@
-package com.winter.aop.advice;
+package com.winter.aop.advisor;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -7,37 +7,33 @@ public class Advisor {
 
     private Annotation annotation;
 
-    private Method advice;
+    private Advice advice;
 
-    private Method pointCut;
+    private AspectJExpressionPointcut expressionPointcut;
 
     private Object aspectObject;
 
-    public Advisor(Annotation annotation, Method advice, Method pointCut, Object aspectObject) {
+    public Advisor(Annotation annotation, Advice advice, Object aspectObject,String pointcut) {
         this.annotation = annotation;
         this.advice = advice;
-        this.pointCut = pointCut;
         this.aspectObject = aspectObject;
+        this.expressionPointcut = new AspectJExpressionPointcut(aspectObject.getClass(), pointcut);
     }
 
     public Annotation getAnnotation() {
         return annotation;
     }
 
-    public Method getAdvice() {
+    public Advice getAdvice() {
         return advice;
-    }
-
-    public Method getPointCut() {
-        return pointCut;
-    }
-
-    public void setPointCut(Method pointCut) {
-        this.pointCut = pointCut;
     }
 
     public Object getAspectObject() {
         return aspectObject;
+    }
+
+    public boolean matches(Method method) {
+        return expressionPointcut.matches(method);
     }
 
 }

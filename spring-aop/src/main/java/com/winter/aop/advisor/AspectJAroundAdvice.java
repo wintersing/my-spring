@@ -1,4 +1,4 @@
-package com.winter.aop.advice;
+package com.winter.aop.advisor;
 
 import com.winter.aop.proxy.MethodInterceptor;
 import com.winter.aop.proxy.MethodInvocation;
@@ -13,9 +13,9 @@ public class AspectJAroundAdvice extends AbstractAspectJAdvice implements Method
     }
 
     @Override
-    public Object invoke(MethodInvocation invocation) throws Throwable {
-        invokeAdviceMethod();
-        return invocation.proceed();
+    public Object invoke(MethodInvocation invocation, Object[] args) throws Throwable {
+        invokeAdviceMethod(args);
+        return invocation.proceed(args);
     }
 
 

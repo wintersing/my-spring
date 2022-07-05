@@ -8,7 +8,6 @@ import com.winter.ioc.annotation.Configuration;
 public class UserConfig {
 
     public UserConfig() {
-        System.out.println("userConfig....");
     }
 
     @Bean

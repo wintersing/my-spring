@@ -1,6 +1,6 @@
 package com.winter.aop.proxy;
 
-import com.winter.aop.advice.Advice;
+import com.winter.aop.advisor.Advice;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -21,6 +21,7 @@ public class ReflectiveMethodInvocation implements MethodInvocation {
         this.target = target;
         this.method = method;
         this.arguments = arguments;
+        this.interceptorsAndDynamicMethodMatchers = interceptorsAndDynamicMethodMatchers;
     }
 
     public Object invokeJoinPoint() throws Throwable {
@@ -28,7 +29,7 @@ public class ReflectiveMethodInvocation implements MethodInvocation {
     }
 
     @Override
-    public Object proceed() throws Throwable {
+    public Object proceed(Object[] args) throws Throwable {
 
 
         if (this.currentInterceptorIndex == this.interceptorsAndDynamicMethodMatchers.size() - 1) {
@@ -39,7 +40,7 @@ public class ReflectiveMethodInvocation implements MethodInvocation {
         Object interceptorOrInterceptionAdvice = this.interceptorsAndDynamicMethodMatchers.get(++this.currentInterceptorIndex);
 
 
-        return ((MethodInterceptor) interceptorOrInterceptionAdvice).invoke(this);
+        return ((MethodInterceptor) interceptorOrInterceptionAdvice).invoke(this, args);
     }
 
 }

@@ -1,4 +1,4 @@
-package com.winter.aop.advice;
+package com.winter.aop.advisor;
 
 import java.lang.reflect.Method;
 
@@ -18,9 +18,10 @@ public abstract class AbstractAspectJAdvice implements Advice {
      *
      * @return
      * @throws Throwable
+     * @param args
      */
-    public Object invokeAdviceMethod() throws Throwable {
-        return aspectJAdviceMethod.invoke(aspectJObject);
+    public Object invokeAdviceMethod(Object[] args) throws Throwable {
+        return aspectJAdviceMethod.invoke(aspectJObject, args);
     }
 
 }

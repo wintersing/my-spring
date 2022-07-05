@@ -7,6 +7,5 @@ public class User {
         System.out.println("init...");
     }
     public User() {
-        System.out.println("user....");
     }
 }

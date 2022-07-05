@@ -2,6 +2,6 @@ package com.winter.aop.proxy;
 
 public interface MethodInvocation {
 
-    Object proceed() throws Throwable;
+    Object proceed(Object[] args) throws Throwable;
 
 }

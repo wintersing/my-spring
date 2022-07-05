@@ -147,7 +147,6 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
     @Override
     public Object doCreateBean(String beanName, Class<?> aClass, Collection<PropertyValue> propertyValues) {
-        System.out.println(beanName + " creating...");
         try {
             Object instance = postProcessBeforeInstantiation(aClass, beanName);
             //判断不是自定义的bean则创建
@@ -156,7 +155,7 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
                 earlySingletonObjects.put(beanName, instance);
             }
             populateBean(instance, beanName, propertyValues);
-            initializeBean(instance, beanName);
+            instance = initializeBean(instance, beanName);
             return instance;
         } catch (Exception e) {
             throw new RuntimeException("创建bean:" + beanName + "失败", e);
@@ -164,25 +163,52 @@ public class DefaultListableBeanFactory implements ApplicationContext, AutowireC
 
     }
 
-    private void initializeBean(Object bean, String beanName) {
-        List<BeanPostProcessor> beanPostProcessor = getBeanPostProcessor();
+    private Object initializeBean(Object bean, String beanName) {
 
-        //初始化前
-        for (BeanPostProcessor postProcessor : beanPostProcessor) {
-            postProcessor.postProcessBeforeInitialization(bean, beanName);
-        }
+        bean = postProcessBeforeInitialization(bean, beanName);
 
         //调用初始化方法
-        invokeInitMethods();
+        invokeInitMethods(bean);
 
-        //初始化后
-        for (BeanPostProcessor postProcessor : beanPostProcessor) {
-            postProcessor.postProcessAfterInitialization(bean, beanName);
+        bean = postProcessAfterInitialization(bean, beanName);
+        return bean;
+    }
+
+    private void invokeInitMethods(Object bean) {
+        if (bean instanceof Aware) {
+            if (bean instanceof BeanFactoryAware) {
+                ((BeanFactoryAware) bean).setBeanFactory(this);
+            }
         }
     }
 
-    private void invokeInitMethods() {
+    private Object postProcessAfterInitialization(Object bean, String beanName) {
+        List<BeanPostProcessor> beanPostProcessor = getBeanPostProcessor();
 
+        //初始化后
+        Object result = bean;
+        for (BeanPostProcessor postProcessor : beanPostProcessor) {
+            result = postProcessor.postProcessAfterInitialization(bean, beanName);
+            if (Objects.isNull(result)) {
+                return result;
+            }
+        }
+        return result;
+    }
+
+
+    private Object postProcessBeforeInitialization(Object bean, String beanName) {
+        List<BeanPostProcessor> beanPostProcessor = getBeanPostProcessor();
+
+        //初始化前
+        Object result = bean;
+        for (BeanPostProcessor postProcessor : beanPostProcessor) {
+            result = postProcessor.postProcessBeforeInitialization(bean, beanName);
+            if (Objects.isNull(result)) {
+                return result;
+            }
+        }
+        return result;
     }
 
     private Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) {

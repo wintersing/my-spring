@@ -1,21 +1,21 @@
 package com.winter.aop.proxy;
 
-import com.winter.aop.advice.Advisor;
+import com.winter.aop.advisor.*;
 import com.winter.ioc.ClassUtils;
-import com.winter.ioc.annotation.Autowired;
 import com.winter.ioc.bean.BeanDefinition;
+import com.winter.ioc.bean.BeanFactory;
 import com.winter.ioc.bean.DefaultListableBeanFactory;
+import com.winter.ioc.extensions.BeanFactoryAware;
 import com.winter.ioc.extensions.BeanPostProcessor;
 import org.apache.commons.collections.CollectionUtils;
 import org.aspectj.lang.annotation.*;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor {
+public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor, BeanFactoryAware {
 
     private boolean proxyTargetClass = false;
 
@@ -29,8 +29,7 @@ public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor
         return exposeProxy;
     }
 
-    @Autowired
-    private DefaultListableBeanFactory beanDefinitionRegistry;
+    private DefaultListableBeanFactory beanFactory;
 
     private List<Advisor> allAdvisor;
 
@@ -43,61 +42,114 @@ public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) {
-        return bean;
+        return wrapIfNecessary(bean, beanName);
     }
 
-
-    protected Object wrapIfNecessary(Object bean, String beanName, Object cacheKey) {
-
-        return null;
+    @Override
+    public void setBeanFactory(BeanFactory beanFactory) {
+        this.beanFactory = (DefaultListableBeanFactory) beanFactory;
     }
 
-    protected List<Advisor> findCandidateAdvisors() throws NoSuchFieldException, IllegalAccessException {
+    protected Object wrapIfNecessary(Object bean, String beanName) {
+        List<Advisor> eligibleAdvisors = findEligibleAdvisors(bean.getClass(), beanName);
+        return createProxy(bean, eligibleAdvisors);
+    }
+
+    private Object createProxy(Object object, List<Advisor> eligibleAdvisors) {
+        return createAopProxy(object, eligibleAdvisors).getProxy();
+    }
+
+    private AopProxy createAopProxy(Object object, List<Advisor> eligibleAdvisors) {
+        return new JdkDynamicAopProxy(object, eligibleAdvisors);
+    }
+
+    protected List<Advisor> findEligibleAdvisors(Class<?> beanClass, String beanName) {
+        List<Advisor> candidateAdvisors = findCandidateAdvisors();
+        List<Advisor> eligibleAdvisors = findAdvisorsThatCanApply(candidateAdvisors, beanClass, beanName);
+
+        if (!eligibleAdvisors.isEmpty()) {
+            //调用链在这里排序
+            eligibleAdvisors = sortAdvisors(eligibleAdvisors);
+        }
+        return eligibleAdvisors;
+    }
+
+    private List<Advisor> sortAdvisors(List<Advisor> eligibleAdvisors) {
+        if (CollectionUtils.isEmpty(eligibleAdvisors)) {
+            return Collections.emptyList();
+        }
+        return eligibleAdvisors.stream().sorted(Comparator.comparing(e -> aspectJAnnotation.indexOf(e.getAnnotation().annotationType()))).collect(Collectors.toList());
+    }
+
+    private List<Advisor> findAdvisorsThatCanApply(List<Advisor> candidateAdvisors, Class<?> beanClass, String beanName) {
+        List<Advisor> eligibleAdvisors = new ArrayList<>();
+        for (Advisor candidateAdvisor : candidateAdvisors) {
+            for (Method method : beanClass.getMethods()) {
+                if (candidateAdvisor.matches(method)) {
+                    eligibleAdvisors.add(candidateAdvisor);
+                    break;
+                }
+            }
+        }
+        return eligibleAdvisors;
+    }
+
+    protected List<Advisor> findCandidateAdvisors() {
         if (CollectionUtils.isEmpty(this.allAdvisor)) {
             List<Advisor> allAdvisor = new ArrayList<>();
-            List<BeanDefinition> beanDefinitions = beanDefinitionRegistry.getBeanDefinitions();
+            List<BeanDefinition> beanDefinitions = beanFactory.getBeanDefinitions();
 
-            List<Method> pointcuts = new ArrayList<>();
             for (BeanDefinition beanDefinition : beanDefinitions) {
                 Class<?> beanClass = beanDefinition.getBeanClass();
                 if (ClassUtils.existAnnotation(beanClass, Aspect.class)) {
-                    Object aspectObject = beanDefinitionRegistry.doGetBean(beanClass);
+                    Object aspectObject = beanFactory.doGetBean(beanClass);
 
                     Method[] methods = beanClass.getMethods();
                     for (Method method : methods) {
 
-                        //获取通知
-                        for (Class<? extends Annotation> aClass : aspectJAnnotation) {
-                            Annotation annotation = method.getAnnotation(aClass);
-                            if (Objects.nonNull(annotation)) {
-                                allAdvisor.add(new Advisor(annotation, method, null, aspectObject));
-                            }
-                        }
+                        Annotation[] declaredAnnotations = method.getDeclaredAnnotations();
+                        Map<Class<? extends Annotation>, Annotation> annotationMap = Arrays.stream(declaredAnnotations).collect(Collectors.toMap(e -> e.annotationType(), e -> e));
 
-                        //获取切点
-                        Pointcut pointcut = method.getAnnotation(Pointcut.class);
-                        if (Objects.nonNull(pointcut)) {
-                            pointcuts.add(method);
+                        for (Class<? extends Annotation> annotation : aspectJAnnotation) {
+//                            for (Annotation declaredAnnotation : declaredAnnotations) {
+                            Annotation declaredAnnotation = annotationMap.get(annotation);
+                            if (Objects.nonNull(declaredAnnotation)) {
+                                try {
+                                    Method value = declaredAnnotation.annotationType().getMethod("value");
+                                    String pointcut = (String) value.invoke(declaredAnnotation);
+                                    AbstractAspectJAdvice aspectJAdvice = buildAspectJAdvice(declaredAnnotation, method, aspectObject);
+                                    if (Objects.nonNull(aspectJAdvice)) {
+                                        allAdvisor.add(new Advisor(declaredAnnotation, aspectJAdvice, aspectObject, pointcut));
+                                    }
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+//                            }
+
                         }
 
                     }
                 }
             }
-
-            Map<String, Method> pointcutMap = pointcuts.stream().collect(Collectors.toMap(e -> e.getName(), e -> e));
-            for (Advisor advisor : allAdvisor) {
-                Field field = advisor.getAnnotation().annotationType().getField("value");
-                String pointcut = (String) field.get(advisor.getAnnotation());
-                Method pointcutMethod = pointcutMap.get(pointcut);
-
-                if (Objects.nonNull(pointcutMethod)) {
-                    advisor.setPointCut(pointcutMethod);
-                    this.allAdvisor.add(advisor);
-                }
-            }
-
+            this.allAdvisor = allAdvisor;
         }
         return allAdvisor;
+    }
+
+    private AbstractAspectJAdvice buildAspectJAdvice(Annotation annotation, Method method, Object aspectObject) {
+        if (Around.class.getName().equals(annotation.annotationType().getName())) {
+            return new AspectJAroundAdvice(method, aspectObject);
+        } else if (Before.class.getName().equals(annotation.annotationType().getName())) {
+            return new AspectJBeforeAdvice(method, aspectObject);
+        } else if (After.class.getName().equals(annotation.annotationType().getName())) {
+            return new AspectJAfterAdvice(method, aspectObject);
+        } else if (AfterReturning.class.getName().equals(annotation.annotationType().getName())) {
+            return new AspectJAfterReturningAdvice(method, aspectObject);
+        } else if (AfterThrowing.class.getName().equals(annotation.annotationType().getName())) {
+            return new AspectJAfterThrowingAdvice(method, aspectObject);
+        }
+        return null;
     }
 
 }
