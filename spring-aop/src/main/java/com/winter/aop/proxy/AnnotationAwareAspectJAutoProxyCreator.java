@@ -60,7 +60,15 @@ public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor
     }
 
     private AopProxy createAopProxy(Object object, List<Advisor> eligibleAdvisors) {
-        return new JdkDynamicAopProxy(object, eligibleAdvisors);
+        if (isProxyTargetClass() || hasNoUserSuppliedProxyInterfaces(object.getClass())) {
+            return new ObjenesisCglibAopProxy(object, eligibleAdvisors);
+        } else {
+            return new JdkDynamicAopProxy(object, eligibleAdvisors);
+        }
+    }
+
+    private boolean hasNoUserSuppliedProxyInterfaces(Class<?> clazz) {
+        return clazz.getInterfaces().length == 0;
     }
 
     protected List<Advisor> findEligibleAdvisors(Class<?> beanClass, String beanName) {

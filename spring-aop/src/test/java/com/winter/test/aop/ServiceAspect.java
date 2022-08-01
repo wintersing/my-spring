@@ -2,13 +2,11 @@ package com.winter.test.aop;
 
 import com.winter.aop.annotation.EnableAspectJAutoProxy;
 import com.winter.ioc.annotation.Component;
-import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 
 @Aspect
 @Component
-@EnableAspectJAutoProxy(proxyTargetClass = true)
+@EnableAspectJAutoProxy()
 public class ServiceAspect {
     //定义切入点表达式
     @Pointcut("execution(* com.winter.test.aop.UserServiceImpl.*(..))")
