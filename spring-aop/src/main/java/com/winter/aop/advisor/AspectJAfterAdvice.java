@@ -13,12 +13,12 @@ public class AspectJAfterAdvice extends AbstractAspectJAdvice implements MethodI
     }
 
     @Override
-    public Object invoke(MethodInvocation invocation, Object[] args) throws Throwable {
+    public Object invoke(MethodInvocation invocation) throws Throwable {
         try {
-            return invocation.proceed(args);
+            return invocation.proceed();
         }
         finally {
-            invokeAdviceMethod(args);
+            invokeAdviceMethod(invocation);
         }
     }
 

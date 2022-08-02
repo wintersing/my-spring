@@ -30,7 +30,7 @@ public class JdkDynamicAopProxy implements InvocationHandler, AopProxy {
         if (Objects.isNull(args)) {
             args = new Object[0];
         }
-        return methodInvocation.proceed(args);
+        return methodInvocation.proceed();
     }
 
     private List<Advice> getInterceptorsAndDynamicInterceptionAdvice(Method method) {

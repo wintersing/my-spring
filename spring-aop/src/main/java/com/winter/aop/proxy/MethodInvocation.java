@@ -1,7 +1,7 @@
 package com.winter.aop.proxy;
 
-public interface MethodInvocation {
+import com.winter.aop.advisor.Joinpoint;
 
-    Object proceed(Object[] args) throws Throwable;
+public interface MethodInvocation extends Joinpoint {
 
 }

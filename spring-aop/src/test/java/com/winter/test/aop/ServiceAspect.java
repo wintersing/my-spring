@@ -2,6 +2,8 @@ package com.winter.test.aop;
 
 import com.winter.aop.annotation.EnableAspectJAutoProxy;
 import com.winter.ioc.annotation.Component;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 
 @Aspect
@@ -22,15 +24,15 @@ public class ServiceAspect {
 
     @AfterReturning("myPointCut()")
     public void myAfterReturning() {
-        System.out.print("AfterReturning");
+        System.out.println("AfterReturning");
     }
 
     @Around("myPointCut()")
-    public Object myAround() throws Throwable {
+    public Object myAround(ProceedingJoinPoint joinPoint) throws Throwable {
         System.out.println("环绕开始");
-
+        Object proceed = joinPoint.proceed();
         System.out.println("环绕结束");
-        return null;
+        return proceed;
     }
 
     @AfterThrowing(value = "myPointCut()")

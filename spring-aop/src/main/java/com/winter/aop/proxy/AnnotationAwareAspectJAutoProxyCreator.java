@@ -33,7 +33,7 @@ public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor
 
     private List<Advisor> allAdvisor;
 
-    private static final List<Class<? extends Annotation>> aspectJAnnotation = Arrays.asList(Around.class, Before.class, After.class, AfterReturning.class, AfterThrowing.class);
+    private static final List<Class<? extends Annotation>> aspectJAnnotation = Arrays.asList(Before.class, Around.class, After.class, AfterReturning.class, AfterThrowing.class);
 
     @Override
     public Object postProcessBeforeInitialization(Object bean, String beanName) {
@@ -86,7 +86,7 @@ public class AnnotationAwareAspectJAutoProxyCreator implements BeanPostProcessor
         if (CollectionUtils.isEmpty(eligibleAdvisors)) {
             return Collections.emptyList();
         }
-        return eligibleAdvisors.stream().sorted(Comparator.comparing(e -> aspectJAnnotation.indexOf(e.getAnnotation().annotationType()))).collect(Collectors.toList());
+        return eligibleAdvisors.stream().sorted(Comparator.comparing(e -> -aspectJAnnotation.indexOf(e.getAnnotation().annotationType()))).collect(Collectors.toList());
     }
 
     private List<Advisor> findAdvisorsThatCanApply(List<Advisor> candidateAdvisors, Class<?> beanClass, String beanName) {

@@ -31,7 +31,7 @@ public class ObjenesisCglibAopProxy implements AopProxy, net.sf.cglib.proxy.Meth
         if (Objects.isNull(objects)) {
             objects = new Object[0];
         }
-        return methodInvocation.proceed(objects);
+        return methodInvocation.proceed();
     }
 
     @Override
